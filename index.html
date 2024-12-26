@@ -1,12 +1,71 @@
 <!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <title>My Test Page</title>
-</head>
-<body>
-  <h1>こんにちは！</h1>
-  <p>これはGitHub Pagesでホストしたテストページです。</p>
-  <p>この文章が表示されていれば、index.htmlが正しく読み込まれています。</p>
-</body>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Office BGM</title>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+      let player;
+      let defaultPlaylist = "YOUR_PLAYLIST_ID"; // YouTubeプレイリストID
+      let appScriptApiBase = "YOUR_APP_SCRIPT_WEB_APP_URL"; // 先程メモしたURL
+
+      function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+          height: '360',
+          width: '640',
+          playerVars: {
+            listType:'playlist',
+            list: defaultPlaylist
+          },
+          events: {
+            'onStateChange': onPlayerStateChange
+          }
+        });
+      }
+
+      function onPlayerStateChange(event) {
+        // 再生が終了したとき等の処理はここに書ける
+      }
+
+      async function checkRequests() {
+        // 新規リクエスト取得
+        let res = await fetch(appScriptApiBase+"?action=getRequest");
+        let data = await res.json();
+
+        if (data && data.url) {
+          // リクエストあり
+          // 現在のプレイリストを止める
+          player.stopVideo();
+          // リクエスト曲再生
+          let videoId = extractVideoId(data.url);
+          player.loadVideoById(videoId);
+
+          // 再生終了を検知するにはonPlayerStateChangeでYT.PlayerState.ENDEDを見て、終わったらmarkAsPlayedを呼ぶ処理を入れる
+          let interval = setInterval(async () => {
+            if (player.getPlayerState() === YT.PlayerState.ENDED) {
+              clearInterval(interval);
+              // 再生終了したので、Playedに更新
+              await fetch(appScriptApiBase+"?action=markPlayed&rowId="+data.rowId);
+              // 再度プレイリスト再生に戻る
+              player.loadPlaylist({list: defaultPlaylist});
+            }
+          }, 3000);
+        } else {
+          // No requests: 何もしない（プレイリスト再生中）
+        }
+      }
+
+      function extractVideoId(url) {
+        // URLからvideoIdを抜き出す簡易関数
+        let urlObj = new URL(url);
+        let v = urlObj.searchParams.get('v');
+        return v || url; // vパラメータがなければURLがvideoIdと仮定
+      }
+
+      setInterval(checkRequests, 30000); // 30秒ごとに新規リクエスト確認
+    </script>
+  </head>
+  <body>
+    <div id="player"></div>
+  </body>
 </html>
